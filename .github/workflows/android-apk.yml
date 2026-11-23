@@ -45,6 +45,7 @@ jobs:
           if ! grep -q 'jvmTarget' "$plugin_gradle"; then
             sed -i '/^android {/a\    kotlinOptions { jvmTarget = "11" }' "$plugin_gradle"
           fi
+          sed -i 's/compileSdkVersion 33/compileSdkVersion 35/' "$plugin_gradle"
       - name: Build release APK
         working-directory: build/android
         run: flutter build apk --release
