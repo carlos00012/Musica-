@@ -1,5 +1,6 @@
 package com.musica.musica.widget
 
+import android.appwidget.AppWidgetManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.ComponentName
