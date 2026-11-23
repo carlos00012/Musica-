@@ -1,0 +1,40 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate Android project shell
+        run: flutter create --project-name musica --org com.musica --platforms android build/android
+      - name: Assemble app sources
+        run: |
+          cp pubspec.yaml build/android/pubspec.yaml
+          cp -R lib build/android/lib
+          cp -R android_overlay/app/src/main/. build/android/android/app/src/main/
+          rm -rf build/android/test
+      - name: Resolve packages and analyze
+        working-directory: build/android
+        run: |
+          flutter pub get
+          flutter analyze
+      - name: Build release APK
+        working-directory: build/android
+        run: flutter build apk --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: musica-android-apk
+          path: build/android/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error

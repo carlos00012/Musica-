@@ -1,0 +1,8 @@
+<resources>
+    <string name="widget_artwork">Carátula de la canción</string>
+    <string name="widget_previous">Canción anterior</string>
+    <string name="widget_play_pause">Reproducir o pausar</string>
+    <string name="widget_next">Siguiente canción</string>
+    <string name="widget_compact_description">Reproductor de música compacto</string>
+    <string name="widget_artwork_description">Reproductor con carátula</string>
+</resources>
