@@ -17,6 +17,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   List<SongModel> _queueSongs = const [];
   final Map<int, Future<Uri?>> _artworkFiles = {};
   String? _lastWidgetState;
+  bool _queueConfigured = false;
   late final Future<void> _ready;
 
   PlayerHandler() {
@@ -77,8 +78,10 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       ignoreCase: true,
     );
     _librarySongs = songs.where((song) => song.uri != null).toList(growable: false);
-    _queueSongs = _librarySongs;
-    queue.add(_queueSongs.map(_toMediaItem).toList(growable: false));
+    if (!_queueConfigured) {
+      _queueSongs = _librarySongs;
+      queue.add(_queueSongs.map(_toMediaItem).toList(growable: false));
+    }
     return _librarySongs;
   }
 
@@ -94,18 +97,31 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> playSongs(List<SongModel> songs, int initialIndex) async {
     await _ready;
     if (songs.isEmpty || initialIndex < 0 || initialIndex >= songs.length) return;
-    _queueSongs = List.unmodifiable(songs);
-    queue.add(_queueSongs.map(_toMediaItem).toList(growable: false));
-    await _player.setAudioSource(
-      ConcatenatingAudioSource(
-        children: _queueSongs
-            .map((item) => AudioSource.uri(Uri.parse(item.uri!)))
-            .toList(growable: false),
-      ),
-      initialIndex: initialIndex,
-    );
+    if (!_sameQueue(songs)) {
+      _queueSongs = List.unmodifiable(songs);
+      queue.add(_queueSongs.map(_toMediaItem).toList(growable: false));
+      await _player.setAudioSource(
+        ConcatenatingAudioSource(
+          children: _queueSongs
+              .map((item) => AudioSource.uri(Uri.parse(item.uri!)))
+              .toList(growable: false),
+        ),
+        initialIndex: initialIndex,
+      );
+      _queueConfigured = true;
+    } else {
+      await _player.seek(Duration.zero, index: initialIndex);
+    }
     await _publishCurrentMediaItem(initialIndex);
     await _player.play();
+  }
+
+  bool _sameQueue(List<SongModel> songs) {
+    if (!_queueConfigured || songs.length != _queueSongs.length) return false;
+    for (var index = 0; index < songs.length; index++) {
+      if (songs[index].id != _queueSongs[index].id) return false;
+    }
+    return true;
   }
 
   MediaItem _toMediaItem(SongModel song) => MediaItem(

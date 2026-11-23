@@ -15,8 +15,15 @@ Future<void> showPlayerSheet(BuildContext context) => showModalBottomSheet<void>
       builder: (_) => const _PlayerSheet(),
     );
 
-class _PlayerSheet extends StatelessWidget {
+class _PlayerSheet extends StatefulWidget {
   const _PlayerSheet();
+
+  @override
+  State<_PlayerSheet> createState() => _PlayerSheetState();
+}
+
+class _PlayerSheetState extends State<_PlayerSheet> {
+  double? _dragPosition;
 
   String _time(Duration value) {
     final minutes = value.inMinutes.toString().padLeft(2, '0');
@@ -91,12 +98,18 @@ class _PlayerSheet extends StatelessWidget {
                     return Column(
                       children: [
                         Slider(
-                          value: value,
+                          value: _dragPosition ?? value,
                           max: max > 0 ? max : 1,
                           onChanged: max > 0
-                              ? (next) => playerHandler.seek(
+                              ? (next) => setState(() => _dragPosition = next)
+                              : null,
+                          onChangeEnd: max > 0
+                              ? (next) {
+                                  setState(() => _dragPosition = null);
+                                  playerHandler.seek(
                                     Duration(milliseconds: next.round()),
-                                  )
+                                  );
+                                }
                               : null,
                         ),
                         Padding(
@@ -178,17 +191,20 @@ class _PlayerSheet extends StatelessWidget {
                   icon: const Icon(Icons.queue_music),
                   label: const Text('Cola de reproducción'),
                 ),
-                Row(
-                  children: [
-                    const Icon(Icons.volume_down, color: Colors.white60),
-                    Expanded(
-                      child: Slider(
-                        value: playerHandler.volume.clamp(0, 1).toDouble(),
-                        onChanged: playerHandler.setVolume,
+                StreamBuilder<PlaybackState>(
+                  stream: playerHandler.playbackState,
+                  builder: (context, snapshot) => Row(
+                    children: [
+                      const Icon(Icons.volume_down, color: Colors.white60),
+                      Expanded(
+                        child: Slider(
+                          value: playerHandler.volume.clamp(0, 1).toDouble(),
+                          onChanged: playerHandler.setVolume,
+                        ),
                       ),
-                    ),
-                    const Icon(Icons.volume_up, color: Colors.white60),
-                  ],
+                      const Icon(Icons.volume_up, color: Colors.white60),
+                    ],
+                  ),
                 ),
               ],
             ),

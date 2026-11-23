@@ -163,6 +163,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
         ],
       ),
     );
+    controller.dispose();
     if (!mounted || name == null || name.isEmpty || _playlists.containsKey(name)) return;
     setState(() => _playlists[name] = []);
     await _savePlaylists();
@@ -217,17 +218,18 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
     final result = songs.toList();
-    result.sort((a, b) {
-      if (_tab == 3) return 0;
-      switch (_sort) {
-        case 'Artista':
-          return (a.artist ?? '').compareTo(b.artist ?? '');
-        case 'Álbum':
-          return (a.album ?? '').compareTo(b.album ?? '');
-        default:
-          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-      }
-    });
+    if (_tab != 3) {
+      result.sort((a, b) {
+        switch (_sort) {
+          case 'Artista':
+            return (a.artist ?? '').compareTo(b.artist ?? '');
+          case 'Álbum':
+            return (a.album ?? '').compareTo(b.album ?? '');
+          default:
+            return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+        }
+      });
+    }
     return result;
   }
 
