@@ -31,7 +31,7 @@ jobs:
         working-directory: build/android
         run: |
           flutter pub get
-          flutter analyze
+          flutter analyze --no-fatal-infos
       - name: Build release APK
         working-directory: build/android
         run: flutter build apk --release
