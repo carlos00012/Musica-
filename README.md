@@ -36,7 +36,9 @@ por la plantilla Android que genere Flutter.
 ```powershell
 flutter create --project-name musica --org com.musica --platforms android build\android
 Copy-Item pubspec.yaml build\android\pubspec.yaml -Force
-Copy-Item lib build\android\lib -Recurse -Force
+Remove-Item build\android\lib -Recurse -Force
+New-Item build\android\lib -ItemType Directory -Force
+Copy-Item lib\* build\android\lib -Recurse -Force
 Copy-Item android_overlay\app\src\main\* build\android\android\app\src\main\ -Recurse -Force
 Set-Location build\android
 flutter pub get

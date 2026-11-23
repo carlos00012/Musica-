@@ -22,7 +22,9 @@ jobs:
       - name: Assemble app sources
         run: |
           cp pubspec.yaml build/android/pubspec.yaml
-          cp -R lib build/android/lib
+          rm -rf build/android/lib
+          mkdir -p build/android/lib
+          cp -R lib/. build/android/lib/
           cp -R android_overlay/app/src/main/. build/android/android/app/src/main/
           rm -rf build/android/test
       - name: Resolve packages and analyze
