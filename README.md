@@ -6,13 +6,16 @@ segundo plano y dos widgets de pantalla de inicio.
 ## Funciones
 
 - Biblioteca local indexada con MediaStore: canciones y carátulas.
+- Filtros para mostrar música clasificada por Android, ocultar tonos/sonidos del
+  sistema y definir la duración mínima; la selección de filtros y el orden se
+  conservan al reiniciar la app.
 - Búsqueda por canción, artista y álbum; orden por título, artista o álbum.
 - Favoritos, historial local y listas de reproducción.
 - Reproducción continua, cola, seek, volumen, shuffle y repetición.
 - `audio_service` y `just_audio` para MediaSession, pantalla de bloqueo y
   notificación multimedia.
 - Widgets Android compacto y con carátula; los controles se comunican con la
-  sesión multimedia.
+  sesión multimedia y reflejan los cambios de pista.
 - GitHub Actions compila el APK release y lo publica como artefacto descargable.
 
 La app reproduce archivos de audio almacenados en el teléfono. No conecta a

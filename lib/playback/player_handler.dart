@@ -17,6 +17,7 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   List<SongModel> _queueSongs = const [];
   final Map<int, Future<Uri?>> _artworkFiles = {};
   String? _lastWidgetState;
+  Future<void> _widgetUpdates = Future<void>.value();
   bool _queueConfigured = false;
   late final Future<void> _ready;
 
@@ -157,26 +158,32 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _scheduleWidgetUpdate(int index) {
+    if (index < 0 || index >= _queueSongs.length) return;
     final key = '${_queueSongs[index].id}:${_player.playing}';
     if (_lastWidgetState == key) return;
     _lastWidgetState = key;
-    unawaited(
-      _updateWidgets(index).catchError((Object error, StackTrace stackTrace) {
-        debugPrint('No se pudieron actualizar los widgets: $error');
-      }),
-    );
+    _widgetUpdates = _widgetUpdates
+        .then((_) => _updateWidgets(index))
+        .catchError((Object error, StackTrace stackTrace) {
+          debugPrint('No se pudieron actualizar los widgets: $error');
+        });
   }
 
   Future<void> _updateWidgets(int index) async {
     if (index < 0 || index >= _queueSongs.length) return;
     final song = _queueSongs[index];
+    final artworkUri = await _artworkFile(song);
+    if (_player.currentIndex != index ||
+        index >= _queueSongs.length ||
+        _queueSongs[index].id != song.id) {
+      return;
+    }
     await HomeWidget.saveWidgetData<String>('title', song.title);
     await HomeWidget.saveWidgetData<String>(
       'artist',
       song.artist ?? 'Artista desconocido',
     );
     await HomeWidget.saveWidgetData<bool>('isPlaying', _player.playing);
-    final artworkUri = await _artworkFile(song);
     await HomeWidget.saveWidgetData<String>(
       'artworkPath',
       artworkUri?.toFilePath(),
@@ -248,17 +255,38 @@ class PlayerHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> skipToNext() async {
     await _ready;
-    if (_player.hasNext) await _player.seekToNext();
+    if (_queueSongs.length < 2) return;
+    final currentIndex = _player.currentIndex;
+    if (currentIndex == null) return;
+    if (_player.shuffleModeEnabled && _player.hasNext) {
+      await _player.seekToNext();
+    } else {
+      await _player.seek(
+        Duration.zero,
+        index: (currentIndex + 1) % _queueSongs.length,
+      );
+    }
+    await _player.play();
   }
 
   @override
   Future<void> skipToPrevious() async {
     await _ready;
-    if (_player.hasPrevious) {
+    if (_queueSongs.length < 2) {
+      await _player.seek(Duration.zero);
+      return;
+    }
+    final currentIndex = _player.currentIndex;
+    if (currentIndex == null) return;
+    if (_player.shuffleModeEnabled && _player.hasPrevious) {
       await _player.seekToPrevious();
     } else {
-      await _player.seek(Duration.zero);
+      await _player.seek(
+        Duration.zero,
+        index: (currentIndex - 1 + _queueSongs.length) % _queueSongs.length,
+      );
     }
+    await _player.play();
   }
 
   @override

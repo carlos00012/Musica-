@@ -46,6 +46,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   String _search = '';
   String? _error;
   bool _loading = true;
+  bool _onlyMusic = true;
+  bool _excludeSystemSounds = true;
+  int _minimumDurationSeconds = 30;
   int _tab = 0;
 
   @override
@@ -70,6 +73,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
           .map(int.tryParse)
           .whereType<int>()
           .toList();
+      _sort = prefs.getString('librarySort') ?? 'Canciones';
+      _onlyMusic = prefs.getBool('libraryOnlyMusic') ?? true;
+      _excludeSystemSounds = prefs.getBool('libraryExcludeSystemSounds') ?? true;
+      _minimumDurationSeconds = prefs.getInt('libraryMinimumDuration') ?? 30;
       final savedPlaylists = prefs.getStringList('playlists') ?? [];
       _playlists = {
         for (final entry in savedPlaylists)
@@ -122,8 +129,105 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _play(SongModel song) async {
-    await playerHandler.playSong(song);
+    final songs = _visibleSongs;
+    final index = songs.indexWhere((item) => item.id == song.id);
+    if (index < 0) return;
+    await playerHandler.playSongs(songs, index);
     await _recordHistory(song);
+  }
+
+  Future<void> _showLibraryFilters() async {
+    var onlyMusic = _onlyMusic;
+    var excludeSystemSounds = _excludeSystemSounds;
+    var minimumDurationSeconds = _minimumDurationSeconds;
+    final applied = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: _surface,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(4, 8, 4, 12),
+                  child: Text(
+                    'Filtros de biblioteca',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Mostrar solo música'),
+                  subtitle: const Text('Usa la clasificación de audio de Android'),
+                  value: onlyMusic,
+                  onChanged: (value) => setSheetState(() => onlyMusic = value),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Ocultar tonos y sonidos del sistema'),
+                  subtitle: const Text(
+                    'Alarmas, tonos, notificaciones, audiolibros y podcasts',
+                  ),
+                  value: excludeSystemSounds,
+                  onChanged: (value) =>
+                      setSheetState(() => excludeSystemSounds = value),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: minimumDurationSeconds,
+                  decoration: const InputDecoration(
+                    labelText: 'Duración mínima',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('Sin mínimo')),
+                    DropdownMenuItem(value: 15, child: Text('15 segundos')),
+                    DropdownMenuItem(value: 30, child: Text('30 segundos')),
+                    DropdownMenuItem(value: 60, child: Text('1 minuto')),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      setSheetState(() => minimumDurationSeconds = value);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancelar'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Aplicar'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (applied != true || !mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('libraryOnlyMusic', onlyMusic);
+    await prefs.setBool('libraryExcludeSystemSounds', excludeSystemSounds);
+    await prefs.setInt('libraryMinimumDuration', minimumDurationSeconds);
+    if (mounted) {
+      setState(() {
+        _onlyMusic = onlyMusic;
+        _excludeSystemSounds = excludeSystemSounds;
+        _minimumDurationSeconds = minimumDurationSeconds;
+      });
+    }
   }
 
   Future<void> _recordHistory(SongModel song) async {
@@ -202,6 +306,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
   List<SongModel> get _visibleSongs {
     Iterable<SongModel> songs = _songs;
+    if (_onlyMusic) {
+      songs = songs.where((song) => song.isMusic == true);
+    }
+    if (_excludeSystemSounds) {
+      songs = songs.where(
+        (song) =>
+            song.isAlarm != true &&
+            song.isRingtone != true &&
+            song.isNotification != true &&
+            song.isAudioBook != true &&
+            song.isPodcast != true,
+      );
+    }
+    if (_minimumDurationSeconds > 0) {
+      final minimumMilliseconds = _minimumDurationSeconds * 1000;
+      songs = songs.where(
+        (song) =>
+            song.duration == null || song.duration! >= minimumMilliseconds,
+      );
+    }
     if (_tab == 2) {
       songs = songs.where((song) => _favorites.contains(song.id));
     } else if (_tab == 3 && _history.isNotEmpty) {
@@ -247,11 +371,20 @@ class _LibraryScreenState extends State<LibraryScreen> {
       appBar: AppBar(
         title: Text(_title, style: const TextStyle(fontWeight: FontWeight.w700)),
         actions: [
+          IconButton(
+            tooltip: 'Filtros de biblioteca',
+            onPressed: _showLibraryFilters,
+            icon: const Icon(Icons.filter_list),
+          ),
           if (_tab == 0)
             PopupMenuButton<String>(
               tooltip: 'Ordenar biblioteca',
               initialValue: _sort,
-              onSelected: (value) => setState(() => _sort = value),
+              onSelected: (value) async {
+                setState(() => _sort = value);
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString('librarySort', value);
+              },
               itemBuilder: (context) => const [
                 PopupMenuItem(value: 'Canciones', child: Text('Canción')),
                 PopupMenuItem(value: 'Artista', child: Text('Artista')),
@@ -348,6 +481,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ? 'Aún no tienes favoritos.'
               : _tab == 1 && _search.isNotEmpty
                   ? 'No se encontraron canciones.'
+                  : _songs.isNotEmpty
+                      ? 'No hay canciones con estos filtros. Puedes ajustarlos desde el botón de filtros.'
                   : 'No encontramos música local en el dispositivo.',
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.white70),
